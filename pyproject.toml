@@ -6,7 +6,15 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "automation-server-client",
+    "ky-client",
+    "odk-tools",
+    "openpyxl",
+    "ruff>=0.15.14",
+    "sbsip",
 ]
 
 [tool.uv.sources]
 automation-server-client = { git = "https://github.com/odense-rpa/automation-server-client.git", tag = "v0.3.0" }
+ky-client = { git = "https://github.com/odense-rpa/ky-client.git" }
+odk-tools = { git = "https://github.com/odense-rpa/odk-tools.git" }
+sbsip = { git = "https://github.com/odense-rpa/sbsip.git" }
