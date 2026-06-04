@@ -1,5 +1,4 @@
 .venv
 .env
 *.xlsx
-/Send oplysningserklæring/*
 /certifikater/*

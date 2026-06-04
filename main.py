@@ -4,7 +4,12 @@ import locale
 import os
 import sys
 
-from automation_server_client import AutomationServer, Workqueue, Credential, WorkItemStatus
+from automation_server_client import (
+    AutomationServer,
+    Workqueue,
+    Credential,
+    WorkItemStatus,
+)
 from datafordeler import Datafordeler as DatafordelerClient
 from ky_client import KYClientManager
 from odk_tools.tracking import Tracker
@@ -17,7 +22,7 @@ from process.ky_service import (
     skal_ignorere_opgave,
     indtast_indtægt,
     afsend_brev_og_upload_til_ky,
-    rediger_opgave,    
+    rediger_opgave,
 )
 
 datafordeler: DatafordelerClient
@@ -30,7 +35,12 @@ def populate_queue(workqueue: Workqueue) -> None:
     logger = logging.getLogger(__name__)
 
     opgaver = ky.opgaveindbakke.hent_opgaver("KH - 07. Feriepenge")
-    opgaver = [opgave for opgave in opgaver if opgave["Opgavenavn"] == "Opfølgningsopgave - Feriekonto: Ferieperiode tilføjet"]
+    opgaver = [
+        opgave
+        for opgave in opgaver
+        if opgave["Opgavenavn"]
+        == "Opfølgningsopgave - Feriekonto: Ferieperiode tilføjet"
+    ]
 
     for opgave in opgaver:
         eksisterende_kødata = workqueue.get_item_by_reference(opgave["Opgave-Id"])
@@ -47,29 +57,42 @@ def process_workqueue(workqueue: Workqueue):
     for item in workqueue:
         with item:
             data = item.data  # Item data deserialized from json as dict
- 
+
             try:
-                # Hent oplysninger                
+                # Hent oplysninger
                 borgeroplysninger = ky.borgere.hent_borgersag(data["CPR-nummer"])
-                opgave_detaljer, ferieoplysninger = hent_opgave_detaljer_og_ferieoplysninger(
-                    data["CPR-nummer"], data["Opgave-Id"]
+                opgave_detaljer, ferieoplysninger = (
+                    hent_opgave_detaljer_og_ferieoplysninger(
+                        data["CPR-nummer"], data["Opgave-Id"]
+                    )
                 )
 
-                # Kontroller oplysninger               
-                if skal_ignorere_opgave(
-                    logger,
+                # Kontroller oplysninger
+                if (
+                    skal_ignorere_opgave(
+                        logger,
+                        data,
+                        borgeroplysninger,
+                        opgave_detaljer,
+                        ferieoplysninger,
+                    )
+                    or ferieoplysninger is None
+                ):
+                    continue
+
+                skatteoplysninger = ky.borgere.hent_skatteoplysninger(
+                    data["CPR-nummer"]
+                )
+
+                # Udfør handlinger
+                indtast_indtægt(data["CPR-nummer"], ferieoplysninger, skatteoplysninger)
+                afsend_brev_og_upload_til_ky(
                     data,
                     borgeroplysninger,
-                    opgave_detaljer,
                     ferieoplysninger,
-                ) or ferieoplysninger is None:
-                    continue
-                
-                skatteoplysninger = ky.borgere.hent_skatteoplysninger(data["CPR-nummer"])
-
-                # Udfør handlinger         
-                indtast_indtægt(data["CPR-nummer"], ferieoplysninger, skatteoplysninger)
-                afsend_brev_og_upload_til_ky(data, borgeroplysninger, ferieoplysninger, skatteoplysninger, args.word_template_path)
+                    skatteoplysninger,
+                    args.word_template_path,
+                )
                 rediger_opgave(data, borgeroplysninger)
 
                 report(
@@ -80,8 +103,7 @@ def process_workqueue(workqueue: Workqueue):
 
                 tracker.track_task(proces_navn)
 
-                
-            except Exception as e:                
+            except Exception as e:
                 report(
                     "modregning_af_feriepenge_kontanthjaelp",
                     "Fejl",
@@ -105,17 +127,16 @@ if __name__ == "__main__":
         certifikat_sti=os.path.join(certifikat_sti, "datafordeler.crt"),
         certifikat_nøglefil=os.path.join(certifikat_sti, "datafordeler.key"),
     )
-        
+
     tracker = Tracker(
-        username=tracking_credential.username, 
-        password=tracking_credential.password
+        username=tracking_credential.username, password=tracking_credential.password
     )
 
     sbsip.start_sbsip(
         brugernavn=SBSip_credential.username,
         adgangskode=SBSip_credential.password,
     )
-    
+
     ky = KYClientManager(
         username=f"{roboa.username}@odense.dk",
         password=roboa.password,
@@ -125,7 +146,7 @@ if __name__ == "__main__":
     ky_service.ky = ky
     ky_service.datafordeler = datafordeler
 
-     # Parse command line arguments
+    # Parse command line arguments
     parser = argparse.ArgumentParser(description=proces_navn)
     parser.add_argument(
         "--excel-file",
@@ -141,8 +162,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not os.path.isfile(args.excel_file):
-       raise FileNotFoundError(f"Excel file not found: {args.excel_file}")
-   
+        raise FileNotFoundError(f"Excel file not found: {args.excel_file}")
+
     load_excel_mapping(args.excel_file)
     locale.setlocale(locale.LC_TIME, "da_DK.UTF-8")
 

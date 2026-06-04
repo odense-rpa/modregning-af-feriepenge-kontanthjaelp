@@ -8,7 +8,14 @@ from datafordeler import Datafordeler as DatafordelerClient
 from datetime import datetime, timedelta
 from decimal import Decimal
 from ky_client import KYClientManager
-from ky_client.models import AfbrydType, Indtægter, IndtægterType, Ydelsesarter, RedigerOpgave
+from ky_client.models import (
+    AfbrydType,
+    Indtægter,
+    IndtægterType,
+    Ydelsesarter,
+    RedigerOpgave,
+    Journalnotat,
+)
 from odk_tools.reporting import report
 from pathlib import Path
 from process.config import get_excel_mapping
@@ -31,7 +38,9 @@ def _nettoficer_beløb(ferieoplysninger: dict, skatteoplysninger: dict) -> Decim
                 continue
         raise ValueError(f"Ugyldig Anvendelsesdato: {value}")
 
-    def _normaliser_trækprocent(value: str | float | int | Decimal | None) -> Decimal | None:
+    def _normaliser_trækprocent(
+        value: str | float | int | Decimal | None,
+    ) -> Decimal | None:
         if value is None:
             return None
 
@@ -79,17 +88,23 @@ def _nettoficer_beløb(ferieoplysninger: dict, skatteoplysninger: dict) -> Decim
         kandidat_rows.append((dato, row))
 
     if len(kandidat_rows) == 0:
-        raise ValueError("Ingen gyldig skatteoplysning fundet med Kilde=ABONNEMENT og gyldig Type")
+        raise ValueError(
+            "Ingen gyldig skatteoplysning fundet med Kilde=ABONNEMENT og gyldig Type"
+        )
 
     kandidat_rows.sort(key=lambda item: item[0], reverse=True)
     nyeste_skatteoplysning = kandidat_rows[0][1]
 
-    trækprocent = _normaliser_trækprocent(nyeste_skatteoplysning.get("A-skattetrækprocent"))
+    trækprocent = _normaliser_trækprocent(
+        nyeste_skatteoplysning.get("A-skattetrækprocent")
+    )
     if trækprocent is None:
         trækprocent = _normaliser_trækprocent(nyeste_skatteoplysning.get("Trækprocent"))
 
     if trækprocent is None:
-        raise ValueError("A-skattetrækprocent og Trækprocent mangler i nyeste skatteoplysning")
+        raise ValueError(
+            "A-skattetrækprocent og Trækprocent mangler i nyeste skatteoplysning"
+        )
 
     netto_beløb = bruttobeløb * (Decimal("1.00") - trækprocent)
     return netto_beløb.quantize(Decimal("0.01"))
@@ -127,7 +142,9 @@ def _match_opgave_detaljer(initierede_hændelser):
 
     match = pattern.search(feriepenge_hændelse["Hændelsetype"])
     if match is None:
-        raise ValueError("Kunne ikke udlede ferieperiode, beløb og dispositionsdato fra hændelsetype")
+        raise ValueError(
+            "Kunne ikke udlede ferieperiode, beløb og dispositionsdato fra hændelsetype"
+        )
 
     detaljer = {
         "ferie_startdato": match.group(1),
@@ -145,8 +162,10 @@ def _match_ferieoplysninger(ferieoplysninger, opgave_detaljer) -> dict | None:
         (
             row
             for row in ferieperioder
-            if str(row.get("Dispositionsdato", "")).strip() == opgave_detaljer["dispositionsdato"]
-            and str(row.get("Første feriedag", "")).strip() == opgave_detaljer["ferie_startdato"]
+            if str(row.get("Dispositionsdato", "")).strip()
+            == opgave_detaljer["dispositionsdato"]
+            and str(row.get("Første feriedag", "")).strip()
+            == opgave_detaljer["ferie_startdato"]
             and _normalize_beloeb(row.get("Udbetalte feriepenge", ""))
             == _normalize_beloeb(opgave_detaljer["beløb"])
         ),
@@ -156,7 +175,9 @@ def _match_ferieoplysninger(ferieoplysninger, opgave_detaljer) -> dict | None:
     return matching_row
 
 
-def _indenfor_nuværende_ferieår(date_to_check: datetime, today: datetime | None = None) -> bool:
+def _indenfor_nuværende_ferieår(
+    date_to_check: datetime, today: datetime | None = None
+) -> bool:
     if today is None:
         today = datetime.now()
 
@@ -232,12 +253,16 @@ def _hent_nyeste_htf_sagsnøgle(borgeroplysninger: dict) -> str | None:
     return htf_sager[0][1]
 
 
-def hent_opgave_detaljer_og_ferieoplysninger(cpr: str, opgave_id: str) -> tuple[dict, dict | None]:
+def hent_opgave_detaljer_og_ferieoplysninger(
+    cpr: str, opgave_id: str
+) -> tuple[dict, dict | None]:
     initierede_hændelser = ky.borgere.åbn_opgave(cpr, opgave_id)
     opgave_detaljer = _match_opgave_detaljer(initierede_hændelser)
     ky.borgere.afbryd_opgave(cpr, opgave_id, AfbrydType.AFBRYD)
     ferieoplysninger = ky.borgere.hent_ferieoplysninger(cpr)
-    matchede_ferieoplysninger = _match_ferieoplysninger(ferieoplysninger, opgave_detaljer)
+    matchede_ferieoplysninger = _match_ferieoplysninger(
+        ferieoplysninger, opgave_detaljer
+    )
 
     return opgave_detaljer, matchede_ferieoplysninger
 
@@ -253,17 +278,25 @@ def skal_ignorere_opgave(
         report(
             "modregning_af_feriepenge_kontanthjaelp",
             "Manuel behandling",
-            {"Cpr": data["CPR-nummer"], "Årsag": "Ferieoplysninger kunne ikke matches med opgave detaljer"},
+            {
+                "Cpr": data["CPR-nummer"],
+                "Årsag": "Ferieoplysninger kunne ikke matches med opgave detaljer",
+            },
         )
         return True
 
-    dispositionsdato = datetime.strptime(opgave_detaljer["dispositionsdato"], "%d-%m-%Y")
+    dispositionsdato = datetime.strptime(
+        opgave_detaljer["dispositionsdato"], "%d-%m-%Y"
+    )
     now = datetime.now()
     if dispositionsdato.year != now.year or dispositionsdato.month != now.month:
         report(
             "modregning_af_feriepenge_kontanthjaelp",
             "Manuel behandling",
-            {"Cpr": data["CPR-nummer"], "Årsag": "Dispositionsdato for feriepenge er ikke i indeværende måned"},
+            {
+                "Cpr": data["CPR-nummer"],
+                "Årsag": "Dispositionsdato for feriepenge er ikke i indeværende måned",
+            },
         )
         return True
 
@@ -281,7 +314,10 @@ def skal_ignorere_opgave(
         report(
             "modregning_af_feriepenge_kontanthjaelp",
             "Godkendte opgaver",
-            {"Cpr": data["CPR-nummer"], "Bemærkning": "Opgave godkendt automatisk, da ingen HTF sag blev fundet"},
+            {
+                "Cpr": data["CPR-nummer"],
+                "Bemærkning": "Opgave godkendt automatisk, da ingen HTF sag blev fundet",
+            },
         )
         return True
 
@@ -289,17 +325,25 @@ def skal_ignorere_opgave(
         report(
             "modregning_af_feriepenge_kontanthjaelp",
             "Manuel behandling",
-            {"Cpr": data["CPR-nummer"], "Årsag": "Årsagskode for feriepenge er udenfor scope for denne automatisering"},
+            {
+                "Cpr": data["CPR-nummer"],
+                "Årsag": "Årsagskode for feriepenge er udenfor scope for denne automatisering",
+            },
         )
         return True
 
     if ferieoplysninger["Årsagskode"] in [1510, 1511, 1513, 1586, 1587]:
         ferieperioder = borgeroplysninger.get("Ferier")
-        if isinstance(ferieperioder, list) and _har_feriedag_i_nuværende_ferieår(ferieperioder):
+        if isinstance(ferieperioder, list) and _har_feriedag_i_nuværende_ferieår(
+            ferieperioder
+        ):
             report(
                 "modregning_af_feriepenge_kontanthjaelp",
                 "Manuel behandling",
-                {"Cpr": data["CPR-nummer"], "Årsag": "Ferieregistrering indenfor indeværende ferieår"},
+                {
+                    "Cpr": data["CPR-nummer"],
+                    "Årsag": "Ferieregistrering indenfor indeværende ferieår",
+                },
             )
             return True
 
@@ -307,7 +351,10 @@ def skal_ignorere_opgave(
             report(
                 "modregning_af_feriepenge_kontanthjaelp",
                 "Manuel behandling",
-                {"Cpr": data["CPR-nummer"], "Årsag": "Angiv ferieperioder opgave tilstede"},
+                {
+                    "Cpr": data["CPR-nummer"],
+                    "Årsag": "Angiv ferieperioder opgave tilstede",
+                },
             )
             return True
 
@@ -321,7 +368,37 @@ def indtast_indtægt(cpr: str, ferieoplysninger: dict, skatteoplysninger: dict) 
     periode_til = (next_month - timedelta(days=1)).strftime("%d-%m-%Y")
     beløb = _nettoficer_beløb(ferieoplysninger, skatteoplysninger)
 
-    # Indberet indtægt - TODO: Evt. journalnotat.
+    template_path = (
+        Path(__file__).resolve().parent.parent
+        / "journalnotater"
+        / (
+            "1561.html"
+            if ferieoplysninger.get("Årsagskode") == 1561
+            else "Andre årsagskoder.html"
+        )
+    )
+    journalnotat_indhold = template_path.read_text(encoding="utf-8")
+    # TODO: Check om html behov overhovedet er til stede
+    journalnotat_felter = {
+        "Beløb": ferieoplysninger["Beløb"],
+        "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
+        "Dato": datetime.now().strftime("%d-%m-%Y"),
+        "Nettoficeret Beløb": str(beløb),
+        "Måned": datetime.now().strftime("%B").lower(),
+    }
+
+    for nøgle, værdi in journalnotat_felter.items():
+        journalnotat_indhold = journalnotat_indhold.replace(
+            f"{{{{{nøgle}}}}}", str(værdi)
+        )
+
+    journalnotat = Journalnotat(
+        indhold=journalnotat_indhold,
+        sagstype="HTF",
+        skabelongruppe="KH",
+        skabelon="Agterskrivelse - feriepenge",
+    )
+
     ky.borgere.indtast_indtægter(
         cpr=cpr,
         indtægter=Indtægter(
@@ -333,6 +410,7 @@ def indtast_indtægt(cpr: str, ferieoplysninger: dict, skatteoplysninger: dict) 
             timer_i_perioden=0,
             ydelsesarter=Ydelsesarter.HJAELP_TIL_FORSOERGGELSE,
         ),
+        journalnotat=journalnotat,
     )
 
 
@@ -367,14 +445,14 @@ def afsend_brev_og_upload_til_ky(
     )
 
     if regel is None:
-        raise ValueError(f"Ingen regel fundet for årsagskode: {ferieoplysninger['Årsagskode']}")
+        raise ValueError(
+            f"Ingen regel fundet for årsagskode: {ferieoplysninger['Årsagskode']}"
+        )
 
     with open(f"{word_template_path}/{regel['Brevskabelon']}.docx", "rb") as f:
         response = httpx.post(
             "http://rpa-ats.odknet.dk:8331/render",
-            files={
-                "file": (f"{word_template_path}/{regel['Brevskabelon']}.docx", f)
-            },
+            files={"file": (f"{word_template_path}/{regel['Brevskabelon']}.docx", f)},
             data={"fields": json.dumps(felter)},
         )
 
@@ -418,9 +496,10 @@ def rediger_opgave(data: dict, borgeroplysninger: dict) -> None:
         opgave_id=data["Opgave-Id"],
         ændringer=RedigerOpgave(
             opfølgningsopgavetype="KH - Tyra ferie",
-            forfalds_dato=datetime.fromordinal(datetime.now().toordinal() + 11).strftime("%d-%m-%Y"),
+            forfalds_dato=datetime.fromordinal(
+                datetime.now().toordinal() + 11
+            ).strftime("%d-%m-%Y"),
         ),
     )
 
     ky.borgere.luk_borgersag(borgeroplysninger["pId"])
-
