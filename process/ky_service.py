@@ -124,6 +124,28 @@ def _to_danish_decimal(val: str | float) -> Decimal:
     return Decimal(str(val))
 
 
+def _dansk_månedsnavn(date_value: datetime | None = None) -> str:
+    if date_value is None:
+        date_value = datetime.now()
+
+    måneder = [
+        "januar",
+        "februar",
+        "marts",
+        "april",
+        "maj",
+        "juni",
+        "juli",
+        "august",
+        "september",
+        "oktober",
+        "november",
+        "december",
+    ]
+
+    return måneder[date_value.month - 1]
+
+
 def _match_opgave_detaljer(initierede_hændelser):
     feriepenge_hændelse = next(
         (
@@ -233,7 +255,7 @@ def _hent_nyeste_htf_sagsnøgle(borgeroplysninger: dict) -> str | None:
     for sag in sagsoversigt:
         if not isinstance(sag, dict):
             continue
-
+        
         sagsnøgle = str(sag.get("Sagsnøgle", "")).strip()
         if not sagsnøgle.startswith("HTF-"):
             continue
@@ -251,6 +273,24 @@ def _hent_nyeste_htf_sagsnøgle(borgeroplysninger: dict) -> str | None:
 
     htf_sager.sort(key=lambda item: item[0], reverse=True)
     return htf_sager[0][1]
+
+
+def _har_aktiv_sag_med_præfiks(
+    borgeroplysninger: dict, præfikser: tuple[str, ...]
+) -> bool:
+    sagsoversigt = borgeroplysninger.get("Sagsoversigt")
+    if not isinstance(sagsoversigt, list) or len(sagsoversigt) == 0:
+        return False
+
+    for sag in sagsoversigt:
+        if not isinstance(sag, dict):
+            continue
+
+        sagsnøgle = str(sag.get("Sagsnøgle", "")).strip()
+        if sagsnøgle.startswith(præfikser):
+            return True
+
+    return False
 
 
 def hent_opgave_detaljer_og_ferieoplysninger(
@@ -274,6 +314,17 @@ def skal_ignorere_opgave(
     opgave_detaljer: dict,
     ferieoplysninger: dict | None,
 ) -> bool:
+    if ky.borgere.er_borger_låst(cpr=data["CPR-nummer"]):
+        report(
+            "modregning_af_feriepenge_kontanthjaelp",
+            "Manuel behandling",
+            {
+                "Cpr": data["CPR-nummer"],
+                "Årsag": "Borger er låst i KY, og kan derfor ikke behandles automatisk",
+            },
+        )
+        return True
+
     if ferieoplysninger is None:
         report(
             "modregning_af_feriepenge_kontanthjaelp",
@@ -289,6 +340,7 @@ def skal_ignorere_opgave(
         opgave_detaljer["dispositionsdato"], "%d-%m-%Y"
     )
     now = datetime.now()
+
     if dispositionsdato.year != now.year or dispositionsdato.month != now.month:
         report(
             "modregning_af_feriepenge_kontanthjaelp",
@@ -310,18 +362,32 @@ def skal_ignorere_opgave(
 
     nyeste_htf_sagsnøgle = _hent_nyeste_htf_sagsnøgle(borgeroplysninger)
     if nyeste_htf_sagsnøgle is None:
+        har_relevant_sag = _har_aktiv_sag_med_præfiks(
+            borgeroplysninger, ("RES-", "RESJ-", "REV-", "LY-")
+        )
+        if har_relevant_sag:
+            report(
+                "modregning_af_feriepenge_kontanthjaelp",
+                "Manuel behandling",
+                {
+                    "Cpr": data["CPR-nummer"],
+                    "Årsag": "Ingen HTF sag, men RES/RESJ/REV/LY sag fundet",
+                },
+            )
+            return True
+
         ky.borgere.godkend_opgave(cpr=data["CPR-nummer"], opgave_id=data["Opgave-Id"])
         report(
             "modregning_af_feriepenge_kontanthjaelp",
             "Godkendte opgaver",
             {
                 "Cpr": data["CPR-nummer"],
-                "Bemærkning": "Opgave godkendt automatisk, da ingen HTF sag blev fundet",
+                "Bemærkning": "Opgave godkendt automatisk, da ingen HTF eller RES/RESJ/REV/LY sag blev fundet",
             },
         )
         return True
 
-    if ferieoplysninger["Årsagskode"] not in [1510, 1511, 1513, 1561, 1586, 1587]:
+    if int(ferieoplysninger["Årsagskode"]) not in [1510, 1511, 1513, 1561, 1586, 1587]:
         report(
             "modregning_af_feriepenge_kontanthjaelp",
             "Manuel behandling",
@@ -332,7 +398,7 @@ def skal_ignorere_opgave(
         )
         return True
 
-    if ferieoplysninger["Årsagskode"] in [1510, 1511, 1513, 1586, 1587]:
+    if int(ferieoplysninger["Årsagskode"]) in [1510, 1511, 1513, 1586, 1587]:
         ferieperioder = borgeroplysninger.get("Ferier")
         if isinstance(ferieperioder, list) and _har_feriedag_i_nuværende_ferieår(
             ferieperioder
@@ -373,18 +439,18 @@ def indtast_indtægt(cpr: str, ferieoplysninger: dict, skatteoplysninger: dict) 
         / "journalnotater"
         / (
             "1561.html"
-            if ferieoplysninger.get("Årsagskode") == 1561
+            if int(ferieoplysninger.get("Årsagskode")) == 1561
             else "Andre årsagskoder.html"
         )
     )
     journalnotat_indhold = template_path.read_text(encoding="utf-8")
-    # TODO: Check om html behov overhovedet er til stede
+
     journalnotat_felter = {
-        "Beløb": ferieoplysninger["Beløb"],
+        "Beløb": ferieoplysninger["Udbetalte feriepenge"],
         "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
         "Dato": datetime.now().strftime("%d-%m-%Y"),
         "Nettoficeret Beløb": str(beløb),
-        "Måned": datetime.now().strftime("%B").lower(),
+        "Måned": _dansk_månedsnavn(),
     }
 
     for nøgle, værdi in journalnotat_felter.items():
@@ -430,7 +496,7 @@ def afsend_brev_og_upload_til_ky(
         "DD+12 dage": (datetime.now() + timedelta(days=12)).strftime("%d-%m-%Y"),
         "DD+40 dage": (datetime.now() + timedelta(days=40)).strftime("%d-%m-%Y"),
         "Netto beløb": _nettoficer_beløb(ferieoplysninger, skatteoplysninger),
-        "Indeværende måned": str(datetime.now().strftime("%B")).lower(),
+        "Indeværende måned": _dansk_månedsnavn(),
     }
 
     regel = next(
@@ -463,6 +529,9 @@ def afsend_brev_og_upload_til_ky(
     pdf_path.write_bytes(response.content)
 
     adresse, post_nr = datafordeler.hent_adresse_til_sbsip(cpr=data["CPR-nummer"])
+    # TODO: Forward til fællespostkasse ved async fejl fra SBSIP
+
+    data["CPR-nummer"] = "XXXXXXXXXX" # TODO: Test 
     sbsip.send_digital_post(
         cpr=data["CPR-nummer"],
         overskrift="Agterskrivelse - feriepenge",

@@ -24,6 +24,28 @@
             "args": [
                 "--queue"
             ]
+        },
+        {
+            "name": "main.py --queue-expired",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--queue-expired"
+            ]
+        },
+        {
+            "name": "main.py --process-expired",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--process-expired"
+            ]
         }
     ]
 }
