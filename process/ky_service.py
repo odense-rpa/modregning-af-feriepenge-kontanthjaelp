@@ -255,7 +255,7 @@ def _hent_nyeste_htf_sagsnøgle(borgeroplysninger: dict) -> str | None:
     for sag in sagsoversigt:
         if not isinstance(sag, dict):
             continue
-        
+
         sagsnøgle = str(sag.get("Sagsnøgle", "")).strip()
         if not sagsnøgle.startswith("HTF-"):
             continue
@@ -531,7 +531,6 @@ def afsend_brev_og_upload_til_ky(
     adresse, post_nr = datafordeler.hent_adresse_til_sbsip(cpr=data["CPR-nummer"])
     # TODO: Forward til fællespostkasse ved async fejl fra SBSIP
 
-    data["CPR-nummer"] = "XXXXXXXXXX" # TODO: Test 
     sbsip.send_digital_post(
         cpr=data["CPR-nummer"],
         overskrift="Agterskrivelse - feriepenge",

@@ -111,7 +111,7 @@ def process_workqueue(workqueue: Workqueue):
     for item in workqueue:
         with item:
             data = item.data  # Item data deserialized from json as dict
-            borgeroplysninger = None      
+            borgeroplysninger = None
 
             try:
                 # Hent oplysninger
@@ -180,7 +180,9 @@ if __name__ == "__main__":
     SBSip_credential = Credential.get_credential("SBSip - produktion")
 
     # Overskriv stien i forbindelse med udvikling
-    certifikat_sti = os.getenv("CERTIFIKATER", "/certifikater") # TODO: ./certifikater ved test
+    certifikat_sti = os.getenv(
+        "CERTIFIKATER", "/certifikater"
+    )  # TODO: ./certifikater ved test
     datafordeler = DatafordelerClient(
         certifikat_sti=os.path.join(certifikat_sti, "datafordeler.crt"),
         certifikat_nøglefil=os.path.join(certifikat_sti, "datafordeler.key"),
