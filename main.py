@@ -1,11 +1,10 @@
 import argparse
-from datetime import date, datetime, timedelta
-from asyncio.log import logger
 import logging
 import os
+import process.ky_service as ky_service
 import sys
-from venv import logger
 
+from datetime import date, datetime, timedelta
 from automation_server_client import (
     AutomationServer,
     Workqueue,
@@ -18,7 +17,6 @@ from odk_tools.tracking import Tracker
 from odk_tools.reporting import report
 from process.config import load_excel_mapping
 from sbsip import sbsip
-import process.ky_service as ky_service
 from process.ky_service import (
     hent_opgave_detaljer_og_ferieoplysninger,
     skal_ignorere_opgave,
@@ -65,6 +63,7 @@ def populate_expired_queue(workqueue: Workqueue) -> None:
 
 
 def process_expired_queue(workqueue: Workqueue):
+    logger = logging.getLogger(__name__)
     for item in workqueue:
         with item:
             data = item.data  # Item data deserialized from json as dict
@@ -141,6 +140,7 @@ def process_workqueue(workqueue: Workqueue):
 
                 # Udfør handlinger
                 indtast_indtægt(data["CPR-nummer"], ferieoplysninger, skatteoplysninger)
+
                 afsend_brev_og_upload_til_ky(
                     data,
                     borgeroplysninger,
@@ -166,9 +166,19 @@ def process_workqueue(workqueue: Workqueue):
                 )
                 logger.error(f"Error processing item: {data}. Error: {e}")
                 item.fail(str(e))
+                raise
             finally:
                 if borgeroplysninger is not None:
-                    ky.borgere.luk_borgersag(borgeroplysninger["pId"])
+                    if not ky.borgere.luk_borgersag(borgeroplysninger["pId"]):
+                        report(
+                            "modregning_af_feriepenge_kontanthjaelp",
+                            "Fejl",
+                            {
+                                "Cpr": data["CPR-nummer"],
+                                "Fejl": "Kunne ikke lukke borgersag i KY",
+                            },
+                        )
+                        item.fail("Kunne ikke lukke borgersag i KY")
 
 
 if __name__ == "__main__":
@@ -181,7 +191,7 @@ if __name__ == "__main__":
 
     # Overskriv stien i forbindelse med udvikling
     certifikat_sti = os.getenv(
-        "CERTIFIKATER", "/certifikater"
+        "CERTIFIKATER", "./certifikater"
     )  # TODO: ./certifikater ved test
     datafordeler = DatafordelerClient(
         certifikat_sti=os.path.join(certifikat_sti, "datafordeler.crt"),

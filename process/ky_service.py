@@ -446,10 +446,10 @@ def indtast_indtægt(cpr: str, ferieoplysninger: dict, skatteoplysninger: dict) 
     journalnotat_indhold = template_path.read_text(encoding="utf-8")
 
     journalnotat_felter = {
-        "Beløb": ferieoplysninger["Udbetalte feriepenge"],
         "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
         "Dato": datetime.now().strftime("%d-%m-%Y"),
-        "Nettoficeret Beløb": str(beløb),
+        "Dato+12": (datetime.now() + timedelta(days=12)).strftime("%d-%m-%Y"),
+        "Beløb": str(beløb),
         "Måned": _dansk_månedsnavn(),
     }
 
@@ -490,7 +490,7 @@ def afsend_brev_og_upload_til_ky(
     regler = get_excel_mapping()
 
     felter = {
-        "Beløb": ferieoplysninger["Beløb"],
+        "Beløb": ferieoplysninger["Udbetalte feriepenge"],
         "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
         "DD+11 dage": (datetime.now() + timedelta(days=11)).strftime("%d-%m-%Y"),
         "DD+12 dage": (datetime.now() + timedelta(days=12)).strftime("%d-%m-%Y"),
@@ -503,9 +503,9 @@ def afsend_brev_og_upload_til_ky(
         (
             r
             for r in regler
-            if isinstance(ferieoplysninger["Årsagskode"], int)
-            and isinstance(r.get("Årsagskode"), int)
-            and r["Årsagskode"] == ferieoplysninger["Årsagskode"]
+            if isinstance(int(ferieoplysninger["Årsagskode"]), int)
+            and isinstance(int(r.get("Årsagskode")), int)
+            and int(r["Årsagskode"]) == int(ferieoplysninger["Årsagskode"])
         ),
         None,
     )
@@ -515,11 +515,16 @@ def afsend_brev_og_upload_til_ky(
             f"Ingen regel fundet for årsagskode: {ferieoplysninger['Årsagskode']}"
         )
 
-    with open(f"{word_template_path}/{regel['Brevskabelon']}.docx", "rb") as f:
+    with open(f"{word_template_path}/{regel['Brevskabelon']}", "rb") as f:
+        felter_json_safe = {
+            key: str(value) if isinstance(value, Decimal) else value
+            for key, value in felter.items()
+        }
+
         response = httpx.post(
             "http://rpa-ats.odknet.dk:8331/render",
-            files={"file": (f"{word_template_path}/{regel['Brevskabelon']}.docx", f)},
-            data={"fields": json.dumps(felter)},
+            files={"file": (f"{word_template_path}/{regel['Brevskabelon']}", f)},
+            data={"fields": json.dumps(felter_json_safe)},
         )
 
     pdf_path = Path(
@@ -569,5 +574,3 @@ def rediger_opgave(data: dict, borgeroplysninger: dict) -> None:
             ).strftime("%d-%m-%Y"),
         ),
     )
-
-    ky.borgere.luk_borgersag(borgeroplysninger["pId"])
