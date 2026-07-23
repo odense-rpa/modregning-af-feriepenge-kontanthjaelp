@@ -191,8 +191,8 @@ if __name__ == "__main__":
 
     # Overskriv stien i forbindelse med udvikling
     certifikat_sti = os.getenv(
-        "CERTIFIKATER", "./certifikater"
-    )  # TODO: ./certifikater ved test
+        "CERTIFIKATER", "/certifikater"
+    )
     datafordeler = DatafordelerClient(
         certifikat_sti=os.path.join(certifikat_sti, "datafordeler.crt"),
         certifikat_nøglefil=os.path.join(certifikat_sti, "datafordeler.key"),

@@ -146,6 +146,27 @@ def _dansk_månedsnavn(date_value: datetime | None = None) -> str:
     return måneder[date_value.month - 1]
 
 
+def _strip_parenthesized_suffix(value: str | None) -> str:
+    text = re.sub(r"\s*\([^)]*\)\s*$", "", str(value or "")).strip()
+    return text or "Ukendt"
+
+
+def _split_adresse_felter(adresse_value: str | None) -> tuple[str, str, str]:
+    adresse = re.sub(r"\s*\([^)]*\)\s*$", "", str(adresse_value or "")).strip()
+    match = re.match(
+        r"^(?P<street>[^,]+)(?:,\s*[^,]+)*,\s*(?P<postal>\d{4})\s+(?P<city>.+)$",
+        adresse,
+    )
+    if match:
+        return (
+            match.group("street").strip() or "Ukendt",
+            match.group("postal").strip() or "Ukendt",
+            match.group("city").strip() or "Ukendt",
+        )
+
+    return adresse or "Ukendt", "Ukendt", "Ukendt"
+
+
 def _match_opgave_detaljer(initierede_hændelser):
     feriepenge_hændelse = next(
         (
@@ -488,15 +509,24 @@ def afsend_brev_og_upload_til_ky(
     word_template_path: str,
 ) -> None:
     regler = get_excel_mapping()
+    personoplysninger = borgeroplysninger.get("Personoplysninger", {})
+    adresse, postnummer, by = _split_adresse_felter(
+        personoplysninger.get("Adresse (indflytningsdato)")
+    )
 
     felter = {
+        "Navn": _strip_parenthesized_suffix(personoplysninger.get("Navn")),
+        "Adresse": adresse,
+        "Postnummer": postnummer,
+        "By": by,
+        "Cpr": _strip_parenthesized_suffix(personoplysninger.get("CPR")),
         "Beløb": ferieoplysninger["Udbetalte feriepenge"],
-        "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
-        "DD+11 dage": (datetime.now() + timedelta(days=11)).strftime("%d-%m-%Y"),
-        "DD+12 dage": (datetime.now() + timedelta(days=12)).strftime("%d-%m-%Y"),
-        "DD+40 dage": (datetime.now() + timedelta(days=40)).strftime("%d-%m-%Y"),
         "Netto beløb": _nettoficer_beløb(ferieoplysninger, skatteoplysninger),
-        "Indeværende måned": _dansk_månedsnavn(),
+        "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
+        "DD11": (datetime.now() + timedelta(days=11)).strftime("%d-%m-%Y"),
+        "DD12": (datetime.now() + timedelta(days=12)).strftime("%d-%m-%Y"),
+        "DD40": (datetime.now() + timedelta(days=40)).strftime("%d-%m-%Y"),        
+        "Måned": _dansk_månedsnavn(),        
     }
 
     regel = next(
