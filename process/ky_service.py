@@ -520,7 +520,7 @@ def afsend_brev_og_upload_til_ky(
         "Postnummer": postnummer,
         "By": by,
         "Cpr": _strip_parenthesized_suffix(personoplysninger.get("CPR")),
-        "Beløb": ferieoplysninger["Udbetalte feriepenge"],
+        "Beløb": _nettoficer_beløb(ferieoplysninger, skatteoplysninger),
         "Netto beløb": _nettoficer_beløb(ferieoplysninger, skatteoplysninger),
         "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
         "DD11": (datetime.now() + timedelta(days=11)).strftime("%d-%m-%Y"),
@@ -558,14 +558,13 @@ def afsend_brev_og_upload_til_ky(
         )
 
     pdf_path = Path(
-        f"{regel['Brevskabelon']} {datetime.now().strftime('%d-%m-%Y')}.pdf"  # TODO: Verify
+        f"{regel['Brevskabelon']} {datetime.now().strftime('%d-%m-%Y')}.pdf"
     )
 
     pdf_path.write_bytes(response.content)
 
     adresse, post_nr = datafordeler.hent_adresse_til_sbsip(cpr=data["CPR-nummer"])
-    # TODO: Forward til fællespostkasse ved async fejl fra SBSIP
-
+   
     sbsip.send_digital_post(
         cpr=data["CPR-nummer"],
         overskrift="Agterskrivelse - feriepenge",

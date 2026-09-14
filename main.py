@@ -132,6 +132,7 @@ def process_workqueue(workqueue: Workqueue):
                     )
                     or ferieoplysninger is None
                 ):
+                    tracker.track_partial_task(proces_navn)
                     continue
 
                 skatteoplysninger = ky.borgere.hent_skatteoplysninger(
@@ -168,17 +169,16 @@ def process_workqueue(workqueue: Workqueue):
                 item.fail(str(e))
                 raise
             finally:
-                if borgeroplysninger is not None:
-                    if not ky.borgere.luk_borgersag(borgeroplysninger["pId"]):
-                        report(
-                            "modregning_af_feriepenge_kontanthjaelp",
-                            "Fejl",
-                            {
-                                "Cpr": data["CPR-nummer"],
-                                "Fejl": "Kunne ikke lukke borgersag i KY",
-                            },
-                        )
-                        item.fail("Kunne ikke lukke borgersag i KY")
+                if borgeroplysninger is not None and not ky.borgere.luk_borgersag(borgeroplysninger["pId"]):                    
+                    report(
+                        "modregning_af_feriepenge_kontanthjaelp",
+                        "Fejl",
+                        {
+                            "Cpr": data["CPR-nummer"],
+                            "Fejl": "Kunne ikke lukke borgersag i KY",
+                        },
+                    )
+                    item.fail("Kunne ikke lukke borgersag i KY")
 
 
 if __name__ == "__main__":
@@ -211,6 +211,7 @@ if __name__ == "__main__":
         username=f"{roboa.username}@odense.dk",
         password=roboa.password,
         idp=roboa.data["idp"],
+        headless=False # TODO: Kun til testing
     )
 
     ky_service.ky = ky
