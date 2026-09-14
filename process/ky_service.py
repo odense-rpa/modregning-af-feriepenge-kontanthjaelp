@@ -27,7 +27,8 @@ datafordeler: DatafordelerClient = None  # type: ignore[assignment]
 
 
 def _nettoficer_beløb(ferieoplysninger: dict, skatteoplysninger: dict) -> Decimal:
-    tilladte_typer = {"Bikort", "Hovedkort", "Hovedkort med A-skat pct"}
+    tilladte_typer = {"Bikort", "Hovedkort", "Hovedkort med A-skat pct."}
+    ARBEJDSMARKEDSBIDRAG = Decimal("0.08")
 
     def _parse_dato(value: str) -> datetime:
         text = str(value).strip()
@@ -57,7 +58,7 @@ def _nettoficer_beløb(ferieoplysninger: dict, skatteoplysninger: dict) -> Decim
         return procent
 
     bruttobeløb = _to_danish_decimal(ferieoplysninger["Udbetalte feriepenge"])
-    if ferieoplysninger.get("Før Skat") != "Ja":
+    if ferieoplysninger.get("Før skat") == 'Nej':
         return bruttobeløb.quantize(Decimal("0.01"))
 
     rows = []
@@ -106,7 +107,7 @@ def _nettoficer_beløb(ferieoplysninger: dict, skatteoplysninger: dict) -> Decim
             "A-skattetrækprocent og Trækprocent mangler i nyeste skatteoplysning"
         )
 
-    netto_beløb = bruttobeløb * (Decimal("1.00") - trækprocent)
+    netto_beløb = bruttobeløb * (Decimal("1.00") - trækprocent - ARBEJDSMARKEDSBIDRAG)
     return netto_beløb.quantize(Decimal("0.01"))
 
 
@@ -153,18 +154,20 @@ def _strip_parenthesized_suffix(value: str | None) -> str:
 
 def _split_adresse_felter(adresse_value: str | None) -> tuple[str, str, str]:
     adresse = re.sub(r"\s*\([^)]*\)\s*$", "", str(adresse_value or "")).strip()
+    # Alt før postnummeret er vejnavn inkl. etage/sal/værelse, fx "Tværkajen 1, 3. 5".
     match = re.match(
-        r"^(?P<street>[^,]+)(?:,\s*[^,]+)*,\s*(?P<postal>\d{4})\s+(?P<city>.+)$",
+        r"^(?P<street>.+?),\s*(?P<postal>\d{4})\s+(?P<city>.+)$",
         adresse,
     )
     if match:
+        street = re.sub(r"\s+", " ", match.group("street")).strip()
         return (
-            match.group("street").strip() or "Ukendt",
-            match.group("postal").strip() or "Ukendt",
-            match.group("city").strip() or "Ukendt",
+            street or "Ukendt",
+            match.group("postal").strip() or "Ukendt Postnummer",
+            match.group("city").strip() or "Ukendt By",
         )
 
-    return adresse or "Ukendt", "Ukendt", "Ukendt"
+    return adresse or "Ukendt Vej", "Ukendt Postnummer", "Ukendt By"
 
 
 def _match_opgave_detaljer(initierede_hændelser):
@@ -514,8 +517,14 @@ def afsend_brev_og_upload_til_ky(
         personoplysninger.get("Adresse (indflytningsdato)")
     )
 
+    navn = _strip_parenthesized_suffix(personoplysninger.get("Navn"))
+
+    if navn == "Navne- og adressebeskyttet":
+        oplysninger = datafordeler.hent_aktiv_adresse(cpr=data["CPR-nummer"].replace("-", ""))
+        navn = oplysninger["borgernavn"]
+
     felter = {
-        "Navn": _strip_parenthesized_suffix(personoplysninger.get("Navn")),
+        "Navn": navn,
         "Adresse": adresse,
         "Postnummer": postnummer,
         "By": by,
@@ -523,6 +532,7 @@ def afsend_brev_og_upload_til_ky(
         "Beløb": _nettoficer_beløb(ferieoplysninger, skatteoplysninger),
         "Netto beløb": _nettoficer_beløb(ferieoplysninger, skatteoplysninger),
         "Dispositionsdato": ferieoplysninger["Dispositionsdato"],
+        "DD": datetime.now().strftime("%d-%m-%Y"),
         "DD11": (datetime.now() + timedelta(days=11)).strftime("%d-%m-%Y"),
         "DD12": (datetime.now() + timedelta(days=12)).strftime("%d-%m-%Y"),
         "DD40": (datetime.now() + timedelta(days=40)).strftime("%d-%m-%Y"),        
@@ -558,15 +568,15 @@ def afsend_brev_og_upload_til_ky(
         )
 
     pdf_path = Path(
-        f"{regel['Brevskabelon']} {datetime.now().strftime('%d-%m-%Y')}.pdf"
+        f"{Path(regel['Brevskabelon']).stem} {datetime.now().strftime('%d-%m-%Y')}.pdf"
     )
 
     pdf_path.write_bytes(response.content)
 
-    adresse, post_nr = datafordeler.hent_adresse_til_sbsip(cpr=data["CPR-nummer"])
+    adresse, post_nr = datafordeler.hent_adresse_til_sbsip(cpr=data["CPR-nummer"].replace("-", ""))
    
     sbsip.send_digital_post(
-        cpr=data["CPR-nummer"],
+        cpr=data["CPR-nummer"].replace("-", ""),
         overskrift="Agterskrivelse - feriepenge",
         beskrivelse="",
         vedhæftet_fil=pdf_path,

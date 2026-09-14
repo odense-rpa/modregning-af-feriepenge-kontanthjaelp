@@ -211,7 +211,7 @@ if __name__ == "__main__":
         username=f"{roboa.username}@odense.dk",
         password=roboa.password,
         idp=roboa.data["idp"],
-        headless=False # TODO: Kun til testing
+        headless=True
     )
 
     ky_service.ky = ky
