@@ -69,10 +69,10 @@ def process_expired_queue(workqueue: Workqueue):
             data = item.data  # Item data deserialized from json as dict
 
             try:
-                # TODO: Test
+                borgeroplysninger = ky.borgere.hent_borgersag(data["CPR-nummer"])
                 ky.borgere.godkend_opgave(data["CPR-nummer"], data["Opgave-Id"])
-
-                tracker.track_task(proces_navn)
+                ky.borgere.luk_borgersag(borgeroplysninger["pId"])
+                tracker.track_partial_task(proces_navn)
 
             except Exception as e:
                 report(
