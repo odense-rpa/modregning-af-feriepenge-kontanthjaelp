@@ -568,7 +568,7 @@ def afsend_brev_og_upload_til_ky(
         )
 
     pdf_path = Path(
-        f"{Path(regel['Brevskabelon']).stem} {datetime.now().strftime('%d-%m-%Y')}.pdf"
+        f"{Path('Agterskrivelse - feriepenge.pdf')}"
     )
 
     pdf_path.write_bytes(response.content)
