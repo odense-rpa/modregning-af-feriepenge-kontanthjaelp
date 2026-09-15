@@ -256,7 +256,7 @@ def _har_feriedag_i_nuværende_ferieår(ferieperioder: list[dict]) -> bool:
 
 
 def _har_angiv_ferieperioder_opgave(borgeroplysninger: dict) -> bool:
-    ubehandlede_opgaver = borgeroplysninger.get("UbehandledeOpgaver", [])
+    ubehandlede_opgaver = borgeroplysninger.get("Ubehandlede opgaver", [])
 
     for opgave in ubehandlede_opgaver:
         if isinstance(opgave, dict):
