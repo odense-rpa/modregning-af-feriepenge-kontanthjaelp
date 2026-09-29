@@ -107,7 +107,7 @@ def _nettoficer_beløb(ferieoplysninger: dict, skatteoplysninger: dict) -> Decim
             "A-skattetrækprocent og Trækprocent mangler i nyeste skatteoplysning"
         )
 
-    netto_beløb = (bruttobeløb * Decimal("1.00") - ARBEJDSMARKEDSBIDRAG) * (
+    netto_beløb = bruttobeløb * (Decimal("1.00") - ARBEJDSMARKEDSBIDRAG) * (
         Decimal("1.00") - trækprocent
     )
     return netto_beløb.quantize(Decimal("0.01"))
