@@ -4,7 +4,7 @@ import re
 import json
 
 
-from datafordeler import Datafordeler as DatafordelerClient
+from datafordeler import DatafordelerGraphQL
 from datetime import datetime, timedelta
 from decimal import Decimal
 from ky_client import KYClientManager
@@ -23,7 +23,7 @@ from sbsip import sbsip
 
 # Set by main.py after initialization
 ky: KYClientManager = None  # type: ignore[assignment]
-datafordeler: DatafordelerClient = None  # type: ignore[assignment]
+datafordeler: DatafordelerGraphQL = None  # type: ignore[assignment]
 
 
 def _nettoficer_beløb(ferieoplysninger: dict, skatteoplysninger: dict) -> Decimal:
@@ -522,8 +522,8 @@ def afsend_brev_og_upload_til_ky(
     navn = _strip_parenthesized_suffix(personoplysninger.get("Navn"))
 
     if navn == "Navne- og adressebeskyttet":
-        oplysninger = datafordeler.hent_aktiv_adresse(cpr=data["CPR-nummer"].replace("-", ""))
-        navn = oplysninger["borgernavn"]
+        person = datafordeler.hent_person(data["CPR-nummer"].replace("-", ""))
+        navn = person.navn.fuldt_navn if person.navn else ""
 
     felter = {
         "Navn": navn,
@@ -575,7 +575,7 @@ def afsend_brev_og_upload_til_ky(
 
     pdf_path.write_bytes(response.content)
 
-    adresse, post_nr = datafordeler.hent_adresse_til_sbsip(cpr=data["CPR-nummer"].replace("-", ""))
+    adresse, post_nr = datafordeler.hent_person(data["CPR-nummer"].replace("-", "")).sbsip_adresse()
    
     sbsip.send_digital_post(
         cpr=data["CPR-nummer"].replace("-", ""),
