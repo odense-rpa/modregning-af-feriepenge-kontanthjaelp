@@ -11,7 +11,7 @@ from automation_server_client import (
     Credential,
     WorkItemStatus,
 )
-from datafordeler import Datafordeler as DatafordelerClient
+from datafordeler import DatafordelerGraphQL
 from ky_client import KYClientManager
 from odk_tools.tracking import Tracker
 from odk_tools.reporting import report
@@ -25,7 +25,7 @@ from process.ky_service import (
     rediger_opgave,
 )
 
-datafordeler: DatafordelerClient
+datafordeler: DatafordelerGraphQL
 ky: KYClientManager
 tracker: Tracker
 proces_navn = "Modregning af feriepenge - Kontanthjælp"
@@ -188,14 +188,11 @@ if __name__ == "__main__":
     roboa = Credential.get_credential("RoboA")
     tracking_credential = Credential.get_credential("Odense SQL Server")
     SBSip_credential = Credential.get_credential("SBSip - produktion")
+    datafordeler_credential = Credential.get_credential("Datafordeler")
 
-    # Overskriv stien i forbindelse med udvikling
-    certifikat_sti = os.getenv(
-        "CERTIFIKATER", "/certifikater"
-    )
-    datafordeler = DatafordelerClient(
-        certifikat_sti=os.path.join(certifikat_sti, "datafordeler.crt"),
-        certifikat_nøglefil=os.path.join(certifikat_sti, "datafordeler.key"),
+    datafordeler = DatafordelerGraphQL(
+        client_id=datafordeler_credential.username,
+        client_secret=datafordeler_credential.password,
     )
 
     tracker = Tracker(
