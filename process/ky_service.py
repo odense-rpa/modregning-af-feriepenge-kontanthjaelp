@@ -590,12 +590,17 @@ def afsend_brev_og_upload_til_ky(
     if sagsnøgle is None:
         raise ValueError("Ingen HTF sag fundet i Sagsoversigt")
 
-    # Upload til KY
-    ky.borgere.upload_dokument(
-        cpr=data["CPR-nummer"],
-        sagsnøgle=sagsnøgle,
-        file_path=pdf_path,
-    )
+    try:
+        # Upload til KY
+        ky.borgere.upload_dokument(
+            cpr=data["CPR-nummer"],
+            sagsnøgle=sagsnøgle,
+            file_path=pdf_path,
+        )
+    except Exception:
+        raise ValueError(
+            f"Kunne ikke uploade afsendt brev til sag med sagsnøgle: {sagsnøgle}"
+        )
 
     pdf_path.unlink(missing_ok=True)
 
