@@ -22,7 +22,7 @@ Automatiserer modregning af feriepenge for borgere på kontanthjælp ved at hent
 - Adgang til **Automation Server** (arbejdskø)
 - Adgang til **KY** (borgersager, opgaver, ferie- og skatteoplysninger)
 - Adgang til **SBSip** (afsendelse af digital post)
-- Adgang til **Datafordeler** (adresseoplysninger) inkl. gyldigt certifikat
+- Adgang til **Datafordeler** (adresseoplysninger) via credential `Datafordeler` i Automation Server
 - `Regelsæt.xlsx` med årsagskode-til-brevskabelon-mapping placeret i roden af projektet
 
 ## Installation
@@ -45,7 +45,6 @@ Miljøvariabler:
 | `ATS_URL` | URL til Automation Server API |
 | `ATS_TOKEN` | Adgangstoken til Automation Server |
 | `ATS_WORKQUEUE_OVERRIDE` | Overskriver arbejdskø-ID (bruges til test) |
-| `CERTIFIKATER` | Sti til certifikater til Datafordeler-klienten (standard: `./certifikater`) |
 
 ## Kørsel
 
@@ -59,7 +58,7 @@ uv run python main.py           # Behandl arbejdskøen
 | Pakke | Formål |
 |---|---|
 | `automation-server-client` | Kommunikation med Automation Server – arbejdskø og credentials |
-| `datafordeler` | Opslag af borgerens adresse til SBSip-afsendelse |
+| `datafordeler` | Opslag af borgerens adresse til SBSip-afsendelse og navn ved navne- og adressebeskyttelse |
 | `ky-client` | Al interaktion med KY: borgersager, opgaver, ferieoplysninger, skatteoplysninger, indkomstregistrering og dokumentupload |
 | `odk-tools` | Aktivitetssporing (Tracker) og rapportering af hændelser |
 | `openpyxl` | Indlæsning af `Regelsæt.xlsx` med årsagskode-til-brevskabelon-mapping |
