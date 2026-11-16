@@ -461,8 +461,8 @@ wheels = [
 
 [[package]]
 name = "ky-client"
-version = "0.1.1"
-source = { git = "https://github.com/odense-rpa/ky-client.git#8bb7b1bb2c59ba6fd8ff2544894c27102bb1a238" }
+version = "0.1.2"
+source = { git = "https://github.com/odense-rpa/ky-client.git#bba5dc96a5cd670ee96df68cf5061c708b36c32f" }
 dependencies = [
     { name = "authlib" },
     { name = "httpx" },
